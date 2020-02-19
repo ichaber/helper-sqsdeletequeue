@@ -1,14 +1,19 @@
 #!/usr/local/bin/python3
-import json
-import os
-import argparse
+import json, os, sys, argparse, subprocess
 
-def main(inputFile, profile, executeCommand):
-    with open(inputFile, 'r') as file:
-        sqsQueues = json.load(file)
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-p', '--profile', required=True)
+    parser.add_argument('-q', '--queueprefix', default='')
+    parser.add_argument('-x', '--execute', default=False, action='store_true')
+    args = parser.parse_args()
+    sqsUrls = getQueueUrls(args.profile, args.queueprefix)
+    deleteQueues(sqsUrls, args.profile, args.execute)
 
+
+def deleteQueues(sqsUrls, profile, executeCommand):
     queueCounter = 0
-    for url in sqsQueues['QueueUrls']:
+    for url in sqsUrls:
         cmd = 'aws-vault exec ' + profile + ' -- aws sqs delete-queue --queue-url ' + url
         print(cmd)
         if executeCommand == True:
@@ -20,11 +25,26 @@ def main(inputFile, profile, executeCommand):
     else:
         print('Total API calls executed: ' +  str(queueCounter))
 
+def getQueueUrls(profile, queueNamePrefix=''):
+    cmd = 'aws-vault exec ' + profile + ' -- aws sqs list-queues'
+    if queueNamePrefix != '':
+        cmd += ' --queue-name-prefix ' + queueNamePrefix
+    
+    try:
+        print('Running: \n' + cmd)
+        completedProcess = subprocess.run(cmd, shell=True, check=True, capture_output=True)
+    except subprocess.CalledProcessError as error:
+        print('Loading of queues failed with msg: ', error.stderr)
+        sys.exit(1)
+    
+    try:
+        queues = json.loads(completedProcess.stdout)
+    except json.JSONDecodeError as error:
+        print('Could not decode json: ', error.msg)
+        sys.exit(1)
+
+    return queues['QueueUrls']
+
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-i', '--inputfile', required=True)
-    parser.add_argument('-p', '--profile', required=True)
-    parser.add_argument('-x', '--execute', default=False, action='store_true')
-    args = parser.parse_args()
-    main(args.inputfile, args.profile, args.execute)
+    main()
