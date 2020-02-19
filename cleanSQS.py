@@ -1,5 +1,5 @@
 #!/usr/local/bin/python3
-import json, os, sys, argparse, subprocess
+import json, sys, argparse, subprocess
 
 def main():
     parser = argparse.ArgumentParser()
@@ -18,7 +18,7 @@ def deleteQueues(sqsUrls, profile, executeCommand):
         print(cmd)
         if executeCommand == True:
             queueCounter += 1
-            os.system(cmd)
+            subprocess.run(cmd, shell=True)
 
     if executeCommand == False:
         print('Execution skipped (Dryrun)')
@@ -36,6 +36,10 @@ def getQueueUrls(profile, queueNamePrefix=''):
     except subprocess.CalledProcessError as error:
         print('Loading of queues failed with msg: ', error.stderr)
         sys.exit(1)
+    
+    if not completedProcess.stdout:
+        print('No queues found. Exiting...')
+        sys.exit(0)
     
     try:
         queues = json.loads(completedProcess.stdout)
